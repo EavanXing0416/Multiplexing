@@ -8,7 +8,7 @@ import matplotlib.tri as mtri
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.cm import ScalarMappable
-from matplotlib.colors import Normalize
+from matplotlib.colors import ListedColormap, Normalize
 
 from .colors import build_default_colormaps, make_zebra_cmap
 from .io import filter_rows, load_numeric_csv
@@ -57,6 +57,81 @@ GLYPH_FIELD_OPTIONS = [
     "phy_loss_grad",
     "entk",
 ]
+
+LAYER_DEFAULTS = {
+    1: {
+        "enabled": True,
+        "source": "testing",
+        "vis": "zebra_map",
+        "field": "u_referance",
+        "colors": "main_data",
+        "alpha": 1.0,
+        "levels": 15,
+        "point_size": 18.0,
+        "glyph_size": 0.03,
+        "scatter_marker": "circle",
+        "scatter_fill": "filled",
+        "glyph_type": "radar",
+        "glyph_fields": ("phy_loss", "data_loss", "phy_loss_grad", "u_pred_grad", "entk"),
+        "show_colorbar": True,
+        "range_mode": "manual",
+        "vmin": -1.5,
+        "vmax": 1.5,
+        "tick_mode": "levels",
+        "tick_count": 5,
+        "tick_values": "",
+        "colorbar_title": "u_ref",
+        "contour_width": 1.0,
+    },
+    2: {
+        "enabled": True,
+        "source": "testing",
+        "vis": "contour",
+        "field": "u_pred",
+        "colors": "contour_glyph",
+        "alpha": 1.0,
+        "levels": 15,
+        "point_size": 18.0,
+        "glyph_size": 0.03,
+        "scatter_marker": "circle",
+        "scatter_fill": "filled",
+        "glyph_type": "radar",
+        "glyph_fields": ("phy_loss", "data_loss", "phy_loss_grad", "u_pred_grad", "entk"),
+        "show_colorbar": True,
+        "range_mode": "manual",
+        "vmin": -1.5,
+        "vmax": 1.5,
+        "tick_mode": "levels",
+        "tick_count": 5,
+        "tick_values": "",
+        "colorbar_title": "u_pred",
+        "contour_width": 1.0,
+    },
+    3: {
+        "enabled": True,
+        "source": "training",
+        "vis": "scatter",
+        "field": "data_loss",
+        "colors": "training_negative",
+        "alpha": 1.0,
+        "levels": 15,
+        "point_size": 32.0,
+        "glyph_size": 0.03,
+        "scatter_marker": "circle",
+        "scatter_fill": "filled",
+        "glyph_type": "radar",
+        "glyph_fields": ("phy_loss", "data_loss", "phy_loss_grad", "u_pred_grad", "entk"),
+        "show_colorbar": True,
+        "range_mode": "auto",
+        "vmin": 0.0,
+        "vmax": 1.0,
+        "tick_mode": "auto",
+        "tick_count": 5,
+        "tick_values": "",
+        "colorbar_title": "trn_err",
+        "contour_width": 1.0,
+    },
+}
 
 
 @lru_cache(maxsize=4)
@@ -147,6 +222,32 @@ def _set_widget_visibility(widget, visible: bool) -> None:
 
 def _build_level_values(vmin: float, vmax: float, levels: int) -> np.ndarray:
     return np.linspace(vmin, vmax, max(2, levels))
+
+
+def _build_contour_colorbar_mappable(level_values: np.ndarray, cmap, vmin: float, vmax: float) -> tuple[ScalarMappable, np.ndarray]:
+    if level_values.size == 0:
+        raise ValueError("Contour colorbar requires at least one level.")
+
+    samples = np.linspace(0.0, 1.0, 512)
+    rgba = np.ones((samples.size, 4), dtype=float)
+    rgba[:, :3] = 1.0
+    rgba[:, 3] = 1.0
+
+    if level_values.size == 1 or np.isclose(vmax, vmin):
+        band = 0.012
+    else:
+        normalized_levels = (level_values - vmin) / (vmax - vmin)
+        min_gap = float(np.min(np.diff(normalized_levels)))
+        band = max(min_gap * 0.12, 0.008)
+
+    for idx, level in enumerate(level_values):
+        normalized = 0.5 if np.isclose(vmax, vmin) else float((level - vmin) / (vmax - vmin))
+        mask = np.abs(samples - normalized) <= band
+        rgba[mask] = cmap(idx / max(1, level_values.size - 1))
+
+    contour_cmap = ListedColormap(rgba, name=f"{getattr(cmap, 'name', 'contour')}_levelbar")
+    contour_norm = Normalize(vmin=vmin, vmax=vmax)
+    return ScalarMappable(norm=contour_norm, cmap=contour_cmap), level_values
 
 
 def _resolve_tick_values(
@@ -361,6 +462,7 @@ def _plot_spatial_layer(
             "slot": colorbar_slot,
             "ticks": tick_values,
             "level_values": level_values,
+            "colorbar_kind": "contour_levels",
         }
 
     if vis_type == "scatter":
@@ -401,6 +503,7 @@ def _plot_spatial_layer(
             "slot": colorbar_slot,
             "ticks": tick_values,
             "legend": None,
+            "colorbar_kind": "continuous",
         }
 
     raise ValueError(f"Unsupported spatial visualization: {vis_type}")
@@ -466,11 +569,11 @@ def render_multiplexing_view(
         main_box = ax_main.get_position()
 
         if visible_colorbars:
-            bar_width = 0.017
-            bar_gap = 0.032
-            bar_height = main_box.height * 0.92
+            bar_width = 0.013
+            bar_gap = 0.065
+            bar_height = main_box.height * 0.9
             bar_bottom = main_box.y0 + (main_box.height - bar_height) / 2.0
-            bar_left = main_box.x1 + 0.045
+            bar_left = main_box.x1 + 0.065
 
             for idx, item in enumerate(visible_colorbars):
                 cax = fig.add_axes(
@@ -481,12 +584,21 @@ def render_multiplexing_view(
                         bar_height,
                     ]
                 )
-                colorbar = fig.colorbar(item["mappable"], cax=cax, ticks=item.get("ticks"))
-                colorbar.ax.set_title(textwrap.fill(str(item["label"]), width=10), fontsize=8, pad=12)
-                colorbar.ax.tick_params(labelsize=8)
+                mappable = item["mappable"]
+                ticks = item.get("ticks")
+                if item.get("colorbar_kind") == "contour_levels":
+                    mappable, ticks = _build_contour_colorbar_mappable(
+                        np.asarray(item["level_values"], dtype=float),
+                        mappable.cmap,
+                        float(mappable.norm.vmin),
+                        float(mappable.norm.vmax),
+                    )
+                colorbar = fig.colorbar(mappable, cax=cax, ticks=ticks)
+                colorbar.ax.set_title(textwrap.fill(str(item["label"]), width=7), fontsize=7, pad=14)
+                colorbar.ax.tick_params(labelsize=7)
 
         if legend_items:
-            legend_left = bar_left + len(visible_colorbars) * (bar_width + bar_gap) + 0.02
+            legend_left = bar_left + len(visible_colorbars) * (bar_width + bar_gap) + 0.045
             legend_width = 0.16
             legend_height = min(0.28, (main_box.height - 0.02) / max(1, len(legend_items)))
             legend_gap = 0.03
@@ -525,42 +637,43 @@ def create_interactive_multiplexing_ui(repo_root: str | Path):
     layer_specs: list[dict[str, object]] = []
 
     def _make_layer_box(index: int):
-        enabled = widgets.Checkbox(value=index == 1, description=f"Enable L{index}")
+        defaults = LAYER_DEFAULTS[index]
+        enabled = widgets.Checkbox(value=defaults["enabled"], description=f"Enable L{index}")
         source = widgets.Dropdown(
             options=["testing", "training"],
-            value="testing" if index == 1 else "training",
+            value=defaults["source"],
             description=f"Source {index}",
         )
-        vis = widgets.Dropdown(options=VIS_OPTIONS[source.value], value=VIS_OPTIONS[source.value][0], description=f"Vis {index}")
-        field_options = SPATIAL_FIELDS.get(source.value, ["total_loss"])
-        field = widgets.Dropdown(options=field_options, value=field_options[0], description=f"Field {index}")
+        vis = widgets.Dropdown(options=VIS_OPTIONS[source.value], value=defaults["vis"], description=f"Vis {index}")
+        field_options = SPATIAL_FIELDS[source.value]
+        field = widgets.Dropdown(options=field_options, value=defaults["field"], description=f"Field {index}")
         colors = widgets.Dropdown(
             options=COLOR_STYLE_OPTIONS,
-            value=_default_color_style(source.value, field.value, vis.value),
+            value=defaults["colors"],
             description=f"Colors {index}",
         )
-        alpha = widgets.FloatSlider(value=1.0, min=0.1, max=1.0, step=0.05, description=f"Alpha {index}", continuous_update=False)
-        levels = widgets.IntSlider(value=15, min=4, max=40, step=1, description=f"Levels {index}", continuous_update=False)
-        point_size = widgets.FloatSlider(value=18.0, min=2.0, max=120.0, step=2.0, description=f"Point {index}", continuous_update=False)
-        glyph_size = widgets.FloatSlider(value=0.03, min=0.01, max=0.08, step=0.005, description=f"G Size {index}", continuous_update=False)
-        scatter_marker = widgets.Dropdown(options=list(SCATTER_MARKERS.keys()), value="circle", description=f"Marker {index}")
-        scatter_fill = widgets.Dropdown(options=["filled", "hollow"], value="filled", description=f"Fill {index}")
-        glyph_type = widgets.Dropdown(options=["radar", "ring"], value="radar", description=f"Glyph {index}")
+        alpha = widgets.FloatSlider(value=defaults["alpha"], min=0.1, max=1.0, step=0.05, description=f"Alpha {index}", continuous_update=False)
+        levels = widgets.IntSlider(value=defaults["levels"], min=4, max=40, step=1, description=f"Levels {index}", continuous_update=False)
+        point_size = widgets.FloatSlider(value=defaults["point_size"], min=2.0, max=120.0, step=2.0, description=f"Point {index}", continuous_update=False)
+        glyph_size = widgets.FloatSlider(value=defaults["glyph_size"], min=0.01, max=0.08, step=0.005, description=f"G Size {index}", continuous_update=False)
+        scatter_marker = widgets.Dropdown(options=list(SCATTER_MARKERS.keys()), value=defaults["scatter_marker"], description=f"Marker {index}")
+        scatter_fill = widgets.Dropdown(options=["filled", "hollow"], value=defaults["scatter_fill"], description=f"Fill {index}")
+        glyph_type = widgets.Dropdown(options=["radar", "ring"], value=defaults["glyph_type"], description=f"Glyph {index}")
         glyph_fields = widgets.SelectMultiple(
             options=GLYPH_FIELD_OPTIONS,
-            value=("phy_loss", "data_loss", "phy_loss_grad", "u_pred_grad", "entk"),
+            value=defaults["glyph_fields"],
             description=f"Metrics {index}",
             rows=6,
         )
-        show_layer_colorbar = widgets.Checkbox(value=index == 1, description=f"ColorBar {index}")
-        range_mode = widgets.Dropdown(options=["auto", "manual"], value="auto", description=f"Range {index}")
-        vmin = widgets.FloatText(value=0.0, description=f"vmin {index}")
-        vmax = widgets.FloatText(value=1.0, description=f"vmax {index}")
-        tick_mode = widgets.Dropdown(options=["auto", "levels", "count", "manual", "none"], value="auto", description=f"Ticks {index}")
-        tick_count = widgets.IntSlider(value=5, min=2, max=15, step=1, description=f"Tick n {index}", continuous_update=False)
-        tick_values = widgets.Text(value="", description=f"Tick vals {index}", continuous_update=False)
-        colorbar_title = widgets.Text(value="", description=f"CB Title {index}", continuous_update=False)
-        contour_width = widgets.FloatSlider(value=1.0, min=0.2, max=3.0, step=0.2, description=f"Line {index}", continuous_update=False)
+        show_layer_colorbar = widgets.Checkbox(value=defaults["show_colorbar"], description=f"ColorBar {index}")
+        range_mode = widgets.Dropdown(options=["auto", "manual"], value=defaults["range_mode"], description=f"Range {index}")
+        vmin = widgets.FloatText(value=defaults["vmin"], description=f"vmin {index}")
+        vmax = widgets.FloatText(value=defaults["vmax"], description=f"vmax {index}")
+        tick_mode = widgets.Dropdown(options=["auto", "levels", "count", "manual", "none"], value=defaults["tick_mode"], description=f"Ticks {index}")
+        tick_count = widgets.IntSlider(value=defaults["tick_count"], min=2, max=15, step=1, description=f"Tick n {index}", continuous_update=False)
+        tick_values = widgets.Text(value=defaults["tick_values"], description=f"Tick vals {index}", continuous_update=False)
+        colorbar_title = widgets.Text(value=defaults["colorbar_title"], description=f"CB Title {index}", continuous_update=False)
+        contour_width = widgets.FloatSlider(value=defaults["contour_width"], min=0.2, max=3.0, step=0.2, description=f"Line {index}", continuous_update=False)
         settings_box = widgets.VBox(
             [
                 source,

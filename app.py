@@ -12,6 +12,7 @@ sys.path.insert(0, str(ROOT / "src"))
 from multiplexing.interactive import (  # noqa: E402
     COLOR_STYLE_OPTIONS,
     GLYPH_FIELD_OPTIONS,
+    LAYER_DEFAULTS,
     SCATTER_MARKERS,
     SPATIAL_FIELDS,
     VIS_OPTIONS,
@@ -26,37 +27,38 @@ pn.extension(sizing_mode="stretch_width")
 class LayerControls:
     def __init__(self, index: int):
         self.index = index
-        self.enabled = pn.widgets.Checkbox(name=f"Enable L{index}", value=index == 1)
-        self.source = pn.widgets.Select(name="Source", options=["testing", "training"], value="testing" if index == 1 else "training")
-        self.vis = pn.widgets.Select(name="Vis", options=VIS_OPTIONS[self.source.value], value=VIS_OPTIONS[self.source.value][0])
-        self.field = pn.widgets.Select(name="Field", options=SPATIAL_FIELDS[self.source.value], value=SPATIAL_FIELDS[self.source.value][0])
+        defaults = LAYER_DEFAULTS[index]
+        self.enabled = pn.widgets.Checkbox(name=f"Enable L{index}", value=defaults["enabled"])
+        self.source = pn.widgets.Select(name="Source", options=["testing", "training"], value=defaults["source"])
+        self.vis = pn.widgets.Select(name="Vis", options=VIS_OPTIONS[self.source.value], value=defaults["vis"])
+        self.field = pn.widgets.Select(name="Field", options=SPATIAL_FIELDS[self.source.value], value=defaults["field"])
         self.colors = pn.widgets.Select(
             name="Colors",
             options=COLOR_STYLE_OPTIONS,
-            value=_default_color_style(self.source.value, self.field.value, self.vis.value),
+            value=defaults["colors"],
         )
-        self.alpha = pn.widgets.FloatSlider(name="Alpha", start=0.1, end=1.0, step=0.05, value=1.0)
-        self.levels = pn.widgets.IntSlider(name="Levels", start=4, end=40, step=1, value=15)
-        self.point_size = pn.widgets.FloatSlider(name="Point", start=2.0, end=120.0, step=2.0, value=18.0)
-        self.glyph_size = pn.widgets.FloatSlider(name="G Size", start=0.01, end=0.08, step=0.005, value=0.03)
-        self.scatter_marker = pn.widgets.Select(name="Marker", options=list(SCATTER_MARKERS.keys()), value="circle")
-        self.scatter_fill = pn.widgets.Select(name="Fill", options=["filled", "hollow"], value="filled")
-        self.glyph_type = pn.widgets.Select(name="Glyph", options=["radar", "ring"], value="radar")
-        self.glyph_fields = pn.widgets.CrossSelector(
+        self.alpha = pn.widgets.FloatSlider(name="Alpha", start=0.1, end=1.0, step=0.05, value=defaults["alpha"])
+        self.levels = pn.widgets.IntSlider(name="Levels", start=4, end=40, step=1, value=defaults["levels"])
+        self.point_size = pn.widgets.FloatSlider(name="Point", start=2.0, end=120.0, step=2.0, value=defaults["point_size"])
+        self.glyph_size = pn.widgets.FloatSlider(name="G Size", start=0.01, end=0.08, step=0.005, value=defaults["glyph_size"])
+        self.scatter_marker = pn.widgets.Select(name="Marker", options=list(SCATTER_MARKERS.keys()), value=defaults["scatter_marker"])
+        self.scatter_fill = pn.widgets.Select(name="Fill", options=["filled", "hollow"], value=defaults["scatter_fill"])
+        self.glyph_type = pn.widgets.Select(name="Glyph", options=["radar", "ring"], value=defaults["glyph_type"])
+        self.glyph_fields = pn.widgets.MultiSelect(
             name="Metrics",
             options=GLYPH_FIELD_OPTIONS,
-            value=["phy_loss", "data_loss", "phy_loss_grad", "u_pred_grad", "entk"],
-            height=180,
+            value=list(defaults["glyph_fields"]),
+            size=7,
         )
-        self.show_colorbar = pn.widgets.Checkbox(name="ColorBar", value=index == 1)
-        self.range_mode = pn.widgets.Select(name="Range", options=["auto", "manual"], value="auto")
-        self.vmin = pn.widgets.FloatInput(name="vmin", value=0.0, step=0.1)
-        self.vmax = pn.widgets.FloatInput(name="vmax", value=1.0, step=0.1)
-        self.tick_mode = pn.widgets.Select(name="Ticks", options=["auto", "levels", "count", "manual", "none"], value="auto")
-        self.tick_count = pn.widgets.IntSlider(name="Tick n", start=2, end=15, step=1, value=5)
-        self.tick_values = pn.widgets.TextInput(name="Tick vals", value="")
-        self.colorbar_title = pn.widgets.TextInput(name="CB Title", value="")
-        self.contour_width = pn.widgets.FloatSlider(name="Line", start=0.2, end=3.0, step=0.2, value=1.0)
+        self.show_colorbar = pn.widgets.Checkbox(name="ColorBar", value=defaults["show_colorbar"])
+        self.range_mode = pn.widgets.Select(name="Range", options=["auto", "manual"], value=defaults["range_mode"])
+        self.vmin = pn.widgets.FloatInput(name="vmin", value=defaults["vmin"], step=0.1)
+        self.vmax = pn.widgets.FloatInput(name="vmax", value=defaults["vmax"], step=0.1)
+        self.tick_mode = pn.widgets.Select(name="Ticks", options=["auto", "levels", "count", "manual", "none"], value=defaults["tick_mode"])
+        self.tick_count = pn.widgets.IntSlider(name="Tick n", start=2, end=15, step=1, value=defaults["tick_count"])
+        self.tick_values = pn.widgets.TextInput(name="Tick vals", value=defaults["tick_values"])
+        self.colorbar_title = pn.widgets.TextInput(name="CB Title", value=defaults["colorbar_title"])
+        self.contour_width = pn.widgets.FloatSlider(name="Line", start=0.2, end=3.0, step=0.2, value=defaults["contour_width"])
 
         self._controls = [
             self.source,

@@ -17,16 +17,16 @@ Compared with the notebook-based version, the Panel app:
 
 ## Online Access
 
-Reviewers and readers can open the interactive demo directly in a browser, without installing Python or Jupyter locally, by launching the notebook through Binder and Voilà:
+Reviewers and readers can open the lightweight Panel app directly in a browser, without installing Python or Jupyter locally, through Binder:
 
-[Launch Interactive Demo on Binder](https://mybinder.org/v2/gh/EavanXing0416/Multiplexing/main?urlpath=voila%2Frender%2Fnotebooks%2Finteractive_multiplexing.ipynb)
+[Launch Panel App on Binder](https://mybinder.org/v2/gh/EavanXing0416/Multiplexing/main?urlpath=%2Fpanel%2Fapp)
 
 Notes:
 
 - The first launch may take a few minutes while Binder builds the environment.
-- After the environment is ready, the notebook will open as a clean interactive app rendered by Voilà.
+- After the environment is ready, Binder will open the Panel app served from `app.py`.
 - No local installation is required for normal review and testing.
-- This Binder entry remains the easiest zero-install option, but it may be slower than the lightweight Panel app.
+- The repository still includes the notebook interface as a secondary option if needed.
 
 ## What This Demo Provides
 
@@ -64,6 +64,10 @@ jupyter notebook
 Then open:
 
 `notebooks/interactive_multiplexing.ipynb`
+
+For a notebook-based Binder session, the previous Voilà entry remains available:
+
+[Launch Notebook Demo on Binder](https://mybinder.org/v2/gh/EavanXing0416/Multiplexing/main?urlpath=voila%2Frender%2Fnotebooks%2Finteractive_multiplexing.ipynb)
 
 ## Repository Layout
 

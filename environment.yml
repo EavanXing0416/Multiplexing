@@ -1,0 +1,9 @@
+name: multiplexing-panel
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pip
+  - jupyter-panel-proxy
+  - pip:
+      - -r requirements.txt
