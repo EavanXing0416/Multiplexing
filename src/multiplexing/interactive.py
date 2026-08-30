@@ -73,6 +73,33 @@ def _discover_case_options(data_root: Path) -> list[str]:
     return sorted(path.name for path in data_root.iterdir() if path.is_dir())
 
 
+@lru_cache(maxsize=32)
+def _training_epoch_data(case_dir: str, epoch: int) -> dict[str, np.ndarray]:
+    training_data, _ = _load_case(case_dir)
+    return filter_rows(training_data, epoch=float(epoch))
+
+
+@lru_cache(maxsize=64)
+def _testing_grid(case_dir: str, field: str) -> tuple[np.ndarray, tuple[float, float, float, float]]:
+    _, testing_data = _load_case(case_dir)
+    t_values, x_values, grid = reshape_regular_grid(testing_data, field)
+    extent = (float(t_values.min()), float(t_values.max()), float(x_values.min()), float(x_values.max()))
+    return grid, extent
+
+
+@lru_cache(maxsize=128)
+def _training_grid(
+    case_dir: str,
+    field: str,
+    epoch: int,
+    t_bins: int,
+    x_bins: int,
+) -> tuple[np.ndarray, tuple[float, float, float, float]]:
+    epoch_data = _training_epoch_data(case_dir, epoch)
+    t_range, x_range, grid = grid_scatter(epoch_data, field, t_bins=t_bins, x_bins=x_bins)
+    return grid, (t_range[0], t_range[1], x_range[0], x_range[1])
+
+
 def _resolve_cmap(style: str):
     cmaps = build_default_colormaps()
     return cmaps[style]
@@ -146,26 +173,24 @@ def _resolve_tick_values(
 
 
 def _render_spatial_grid(
+    case_dir: str,
     source_name: str,
     field: str,
-    training_data: dict[str, np.ndarray],
-    testing_data: dict[str, np.ndarray],
     epoch: int,
     t_bins: int,
     x_bins: int,
 ) -> tuple[np.ndarray, list[float]]:
     if source_name == "testing":
-        t_values, x_values, grid = reshape_regular_grid(testing_data, field)
-        extent = [float(t_values.min()), float(t_values.max()), float(x_values.min()), float(x_values.max())]
-        return grid, extent
+        grid, extent = _testing_grid(case_dir, field)
+        return grid, list(extent)
 
-    epoch_data = filter_rows(training_data, epoch=float(epoch))
-    t_range, x_range, grid = grid_scatter(epoch_data, field, t_bins=t_bins, x_bins=x_bins)
-    return grid, [t_range[0], t_range[1], x_range[0], x_range[1]]
+    grid, extent = _training_grid(case_dir, field, epoch, t_bins, x_bins)
+    return grid, list(extent)
 
 
 def _plot_spatial_layer(
     ax: plt.Axes,
+    case_dir: str,
     layer_config: dict[str, object],
     training_data: dict[str, np.ndarray],
     testing_data: dict[str, np.ndarray],
@@ -198,7 +223,7 @@ def _plot_spatial_layer(
     glyph_radius = float(layer_config.get("glyph_size", 0.03))
 
     if vis_type == "glyph":
-        epoch_data = filter_rows(training_data, epoch=float(epoch))
+        epoch_data = _training_epoch_data(case_dir, epoch)
         metrics = [metric for metric in glyph_fields if metric in GLYPH_FIELD_OPTIONS]
         if not metrics:
             metrics = ["phy_loss", "data_loss", "phy_loss_grad", "u_pred_grad", "entk"]
@@ -239,7 +264,7 @@ def _plot_spatial_layer(
             },
         }
 
-    grid, extent = _render_spatial_grid(source_name, field, training_data, testing_data, epoch, t_bins, x_bins)
+    grid, extent = _render_spatial_grid(case_dir, source_name, field, epoch, t_bins, x_bins)
     grid_vmin = float(np.min(grid)) if vmin is None else vmin
     grid_vmax = float(np.max(grid)) if vmax is None else vmax
     norm = Normalize(vmin=grid_vmin, vmax=grid_vmax)
@@ -297,7 +322,7 @@ def _plot_spatial_layer(
             mesh_t, mesh_x = np.meshgrid(t_axis, x_axis)
             contour_source = ("grid", mesh_t, mesh_x, grid)
         else:
-            source = filter_rows(training_data, epoch=float(epoch))
+            source = _training_epoch_data(case_dir, epoch)
             triangulation = mtri.Triangulation(source["t"], source["x"])
             contour_source = ("tri", triangulation, source[field])
 
@@ -342,7 +367,7 @@ def _plot_spatial_layer(
         if source_name == "testing":
             source = testing_data
         else:
-            source = filter_rows(training_data, epoch=float(epoch))
+            source = _training_epoch_data(case_dir, epoch)
         values = source[field]
         if range_mode == "auto":
             norm = Normalize(vmin=float(np.min(values)), vmax=float(np.max(values)))
@@ -390,7 +415,8 @@ def render_multiplexing_view(
     t_bins: int,
     x_bins: int,
 ) -> plt.Figure:
-    training_data, testing_data = _load_case(str(Path(case_dir).resolve()))
+    case_dir = str(Path(case_dir).resolve())
+    training_data, testing_data = _load_case(case_dir)
     active_spatial = [layer for layer in layers if layer["enabled"] and layer["source"] in {"testing", "training"}]
     fig, ax_main = plt.subplots(figsize=(7.65, 7.65), constrained_layout=True)
 
@@ -399,6 +425,7 @@ def render_multiplexing_view(
     for slot, layer in enumerate(active_spatial):
         layer_result = _plot_spatial_layer(
             ax_main,
+            case_dir,
             layer,
             training_data,
             testing_data,
@@ -488,10 +515,10 @@ def create_interactive_multiplexing_ui(repo_root: str | Path):
     default_case = "wave_case" if "wave_case" in case_options else (case_options[0] if case_options else "")
 
     data_source = widgets.Dropdown(options=case_options, value=default_case, description="Dataset")
-    epoch = widgets.IntSlider(value=20000, min=0, max=20000, step=2000, description="Epoch")
-    t_bins = widgets.IntSlider(value=300, min=50, max=700, step=50, description="t bins")
-    x_bins = widgets.IntSlider(value=300, min=50, max=700, step=50, description="x bins")
-    export_name = widgets.Text(value="multiplexing-view.png", description="Filename")
+    epoch = widgets.IntSlider(value=20000, min=0, max=20000, step=2000, description="Epoch", continuous_update=False)
+    t_bins = widgets.IntSlider(value=250, min=50, max=700, step=50, description="t bins", continuous_update=False)
+    x_bins = widgets.IntSlider(value=250, min=50, max=700, step=50, description="x bins", continuous_update=False)
+    export_name = widgets.Text(value="multiplexing-view.png", description="Filename", continuous_update=False)
     save_button = widgets.Button(description="Save figure", button_style="success")
     save_status = widgets.HTML("")
 
@@ -512,10 +539,10 @@ def create_interactive_multiplexing_ui(repo_root: str | Path):
             value=_default_color_style(source.value, field.value, vis.value),
             description=f"Colors {index}",
         )
-        alpha = widgets.FloatSlider(value=1.0, min=0.1, max=1.0, step=0.05, description=f"Alpha {index}")
-        levels = widgets.IntSlider(value=15, min=4, max=40, step=1, description=f"Levels {index}")
-        point_size = widgets.FloatSlider(value=18.0, min=2.0, max=120.0, step=2.0, description=f"Point {index}")
-        glyph_size = widgets.FloatSlider(value=0.03, min=0.01, max=0.08, step=0.005, description=f"G Size {index}")
+        alpha = widgets.FloatSlider(value=1.0, min=0.1, max=1.0, step=0.05, description=f"Alpha {index}", continuous_update=False)
+        levels = widgets.IntSlider(value=15, min=4, max=40, step=1, description=f"Levels {index}", continuous_update=False)
+        point_size = widgets.FloatSlider(value=18.0, min=2.0, max=120.0, step=2.0, description=f"Point {index}", continuous_update=False)
+        glyph_size = widgets.FloatSlider(value=0.03, min=0.01, max=0.08, step=0.005, description=f"G Size {index}", continuous_update=False)
         scatter_marker = widgets.Dropdown(options=list(SCATTER_MARKERS.keys()), value="circle", description=f"Marker {index}")
         scatter_fill = widgets.Dropdown(options=["filled", "hollow"], value="filled", description=f"Fill {index}")
         glyph_type = widgets.Dropdown(options=["radar", "ring"], value="radar", description=f"Glyph {index}")
@@ -530,10 +557,10 @@ def create_interactive_multiplexing_ui(repo_root: str | Path):
         vmin = widgets.FloatText(value=0.0, description=f"vmin {index}")
         vmax = widgets.FloatText(value=1.0, description=f"vmax {index}")
         tick_mode = widgets.Dropdown(options=["auto", "levels", "count", "manual", "none"], value="auto", description=f"Ticks {index}")
-        tick_count = widgets.IntSlider(value=5, min=2, max=15, step=1, description=f"Tick n {index}")
-        tick_values = widgets.Text(value="", description=f"Tick vals {index}")
-        colorbar_title = widgets.Text(value="", description=f"CB Title {index}")
-        contour_width = widgets.FloatSlider(value=1.0, min=0.2, max=3.0, step=0.2, description=f"Line {index}")
+        tick_count = widgets.IntSlider(value=5, min=2, max=15, step=1, description=f"Tick n {index}", continuous_update=False)
+        tick_values = widgets.Text(value="", description=f"Tick vals {index}", continuous_update=False)
+        colorbar_title = widgets.Text(value="", description=f"CB Title {index}", continuous_update=False)
+        contour_width = widgets.FloatSlider(value=1.0, min=0.2, max=3.0, step=0.2, description=f"Line {index}", continuous_update=False)
         settings_box = widgets.VBox(
             [
                 source,
