@@ -4,7 +4,7 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.patches import Polygon
+from matplotlib.patches import Circle, Polygon, Rectangle, Wedge
 
 from .colors import build_default_colormaps
 from .io import filter_rows, load_numeric_csv
@@ -120,6 +120,140 @@ def _draw_radar_glyph(
             alpha=0.78,
         )
         ax.add_patch(triangle)
+
+
+def _draw_ring_glyph(
+    ax: plt.Axes,
+    t: float,
+    x: float,
+    normalized_values: np.ndarray,
+    colors: list[str],
+    *,
+    radius: float = 0.03,
+) -> None:
+    count = max(1, normalized_values.size)
+    band_width = radius / (count + 1)
+    for idx, (value, color) in enumerate(zip(normalized_values, colors, strict=True), start=1):
+        outer_radius = band_width * (idx + 0.45)
+        width = band_width * 0.72
+        background_ring = Wedge(
+            (t, x),
+            r=outer_radius,
+            theta1=0,
+            theta2=360,
+            width=width,
+            facecolor="none",
+            edgecolor="#d9d9d9",
+            linewidth=0.25,
+            alpha=0.9,
+        )
+        value_ring = Wedge(
+            (t, x),
+            r=outer_radius,
+            theta1=90,
+            theta2=90 + 360 * float(np.clip(value, 0.0, 1.0)),
+            width=width,
+            facecolor=color,
+            edgecolor="none",
+            alpha=0.82,
+        )
+        ax.add_patch(background_ring)
+        ax.add_patch(value_ring)
+
+    center = Circle((t, x), radius=band_width * 0.35, facecolor="white", edgecolor="#666666", linewidth=0.25, alpha=0.95)
+    ax.add_patch(center)
+
+
+def draw_glyph_legend(
+    ax: plt.Axes,
+    glyph_type: str,
+    metrics: list[str],
+    colors: list[str],
+) -> None:
+    ax.set_xlim(0.0, 1.0)
+    ax.set_ylim(0.0, 1.0)
+    ax.set_aspect("equal")
+    ax.axis("off")
+
+    title = "Radar Glyph Legend" if glyph_type == "radar" else "Ring Glyph Legend"
+    ax.text(0.02, 0.98, title, va="top", ha="left", fontsize=9, fontweight="bold")
+
+    cx, cy, radius = 0.28, 0.68, 0.18
+    tick_levels = [0.25, 0.5, 0.75, 1.0]
+
+    if glyph_type == "radar":
+        angles = np.linspace(0, 2 * np.pi, max(1, len(metrics)), endpoint=False)
+        for level in tick_levels:
+            ring = Circle((cx, cy), radius * level, facecolor="none", edgecolor="#cfcfcf", linewidth=0.45)
+            ax.add_patch(ring)
+        for angle in angles:
+            ax.plot(
+                [cx, cx + radius * np.cos(angle)],
+                [cy, cy + radius * np.sin(angle)],
+                color="#d7d7d7",
+                linewidth=0.4,
+            )
+        sample_values = np.linspace(0.35, 0.95, max(1, len(metrics)))
+        vertices = []
+        for angle, value in zip(angles, sample_values, strict=True):
+            scale = radius * value
+            vertices.append((cx + scale * np.cos(angle), cy + scale * np.sin(angle)))
+        ax.add_patch(Polygon(vertices, closed=True, facecolor="none", edgecolor="#444444", linewidth=0.6))
+        for angle, value, color in zip(angles, sample_values, colors, strict=True):
+            scale = radius * value
+            ax.add_patch(
+                Polygon(
+                    [
+                        (cx, cy),
+                        (cx + scale * np.cos(angle - 0.22), cy + scale * np.sin(angle - 0.22)),
+                        (cx + scale * np.cos(angle + 0.22), cy + scale * np.sin(angle + 0.22)),
+                    ],
+                    closed=True,
+                    facecolor=color,
+                    edgecolor="none",
+                    alpha=0.82,
+                )
+            )
+    else:
+        band_width = radius / (max(1, len(metrics)) + 1)
+        sample_values = np.linspace(0.3, 0.95, max(1, len(metrics)))
+        for idx, value in enumerate(sample_values, start=1):
+            outer_radius = band_width * (idx + 0.45)
+            width = band_width * 0.72
+            ax.add_patch(
+                Wedge(
+                    (cx, cy),
+                    r=outer_radius,
+                    theta1=0,
+                    theta2=360,
+                    width=width,
+                    facecolor="none",
+                    edgecolor="#d7d7d7",
+                    linewidth=0.35,
+                )
+            )
+            ax.add_patch(
+                Wedge(
+                    (cx, cy),
+                    r=outer_radius,
+                    theta1=90,
+                    theta2=90 + 360 * value,
+                    width=width,
+                    facecolor=colors[idx - 1],
+                    edgecolor="none",
+                    alpha=0.82,
+                )
+            )
+        ax.add_patch(Circle((cx, cy), radius=band_width * 0.35, facecolor="white", edgecolor="#666666", linewidth=0.25))
+
+    for idx, level in enumerate(tick_levels):
+        ax.text(0.47, 0.79 - idx * 0.08, f"{level:.2f}", fontsize=7, color="#666666", va="center", ha="left")
+
+    y = 0.42
+    for metric, color in zip(metrics, colors, strict=True):
+        ax.add_patch(Rectangle((0.02, y - 0.025), 0.045, 0.045, facecolor=color, edgecolor="none"))
+        ax.text(0.08, y, metric, fontsize=8, va="center", ha="left")
+        y -= 0.075
 
 
 def plot_local_multiplexing(
