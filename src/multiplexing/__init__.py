@@ -1,6 +1,12 @@
 """Utilities for reproducing multiplexing figures from the wave PDE case."""
 
 from .io import load_numeric_csv, filter_rows
+from .interactive import create_interactive_multiplexing_ui
 from .plots import generate_all_figures
 
-__all__ = ["filter_rows", "generate_all_figures", "load_numeric_csv"]
+__all__ = [
+    "create_interactive_multiplexing_ui",
+    "filter_rows",
+    "generate_all_figures",
+    "load_numeric_csv",
+]

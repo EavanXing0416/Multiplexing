@@ -32,6 +32,27 @@ python scripts/generate_figures.py
 
 Generated figures will be written to `figures/`.
 
+## Interactive notebook
+
+An interactive notebook is included at `notebooks/interactive_multiplexing.ipynb`.
+
+It exposes UI controls for:
+
+- layer type
+- data field
+- colorbar / colormap style
+- alpha
+- contour levels
+- point size
+- glyph radius
+- epoch
+
+Start Jupyter from the repository root and open the notebook:
+
+```bash
+jupyter notebook
+```
+
 ## What was cleaned up
 
 - Removed the dependency on the old `v-vis` frontend project.
