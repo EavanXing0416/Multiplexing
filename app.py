@@ -192,7 +192,6 @@ epoch = pn.widgets.IntSlider(name="Epoch", start=0, end=20000, step=2000, value=
 t_bins = pn.widgets.IntSlider(name="t bins", start=50, end=700, step=50, value=250)
 x_bins = pn.widgets.IntSlider(name="x bins", start=50, end=700, step=50, value=250)
 filename = pn.widgets.TextInput(name="Filename", value="multiplexing-view.png")
-render_button = pn.widgets.Button(name="Update Figure", button_type="primary")
 
 layers = [LayerControls(1), LayerControls(2), LayerControls(3)]
 figure_pane = pn.pane.Matplotlib(sizing_mode="stretch_width", tight=True)
@@ -239,7 +238,13 @@ def _sync_download_name(_event):
 
 
 filename.param.watch(_sync_download_name, "value")
-render_button.on_click(update_figure)
+
+for widget in [dataset, epoch, t_bins, x_bins, filename]:
+    widget.param.watch(update_figure, "value")
+
+for layer in layers:
+    for control in layer._controls + [layer.enabled]:
+        control.param.watch(update_figure, "value")
 
 intro = pn.pane.Markdown(
     """
@@ -255,7 +260,7 @@ global_controls = pn.Column(
     pn.Row(
         pn.Column(dataset, epoch, sizing_mode="stretch_width"),
         pn.Column(t_bins, x_bins, sizing_mode="stretch_width"),
-        pn.Column(filename, pn.Row(render_button, download), sizing_mode="stretch_width"),
+        pn.Column(filename, download, sizing_mode="stretch_width"),
         sizing_mode="stretch_width",
     ),
 )
