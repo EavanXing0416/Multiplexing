@@ -512,7 +512,7 @@ def create_interactive_multiplexing_ui(repo_root: str | Path):
             value=_default_color_style(source.value, field.value, vis.value),
             description=f"Colors {index}",
         )
-        alpha = widgets.FloatSlider(value=0.8, min=0.1, max=1.0, step=0.05, description=f"Alpha {index}")
+        alpha = widgets.FloatSlider(value=1.0, min=0.1, max=1.0, step=0.05, description=f"Alpha {index}")
         levels = widgets.IntSlider(value=15, min=4, max=40, step=1, description=f"Levels {index}")
         point_size = widgets.FloatSlider(value=18.0, min=2.0, max=120.0, step=2.0, description=f"Point {index}")
         glyph_size = widgets.FloatSlider(value=0.03, min=0.01, max=0.08, step=0.005, description=f"G Size {index}")
@@ -759,7 +759,7 @@ def create_interactive_multiplexing_ui(repo_root: str | Path):
     ui = widgets.VBox(
         [
             widgets.HTML("<h3>Interactive Multiplexing Explorer</h3>"),
-            widgets.HTML("<p>Choose a data source, a visualization for that source, and combine up to three multiplexing layers.</p>"),
+            widgets.HTML("<p>This notebook accompanies the paper's supplementary material and is intended for reviewers and readers to interactively test the multiplexing design. Choose a dataset, configure up to three layers, and compare how data source, visualization, field selection, and color design affect the final view.</p>"),
             global_controls,
             layers_panel,
             output,
