@@ -86,3 +86,12 @@ If a notebook-based Binder session is preferred, the repository also provides:
 
 [Launch Notebook Demo](https://mybinder.org/v2/gh/EavanXing0416/Multiplexing/main?urlpath=voila%2Frender%2Fnotebooks%2Finteractive_multiplexing.ipynb)
 
+## Related Publications
+
+This repository accompanies and builds on the following work:
+
+- Min Chen, Steven Walton, Kai Berger, Jeyan Thiyagalingam, Brian Duffy, Hui Fang, Catherine Holloway, and Anne E. Trefethen. **Visual Multiplexing**. *Computer Graphics Forum*, 33(3):241-250, 2014. [DOI](https://doi.org/10.1111/cgf.12380)
+- Yiwen Xing, Afrah Farea, Saiful Khan, and Min Chen. **A Multiplexing Design Space: Theory, Method, and Application**. arXiv:2606.12719, 2026. [arXiv](https://arxiv.org/abs/2606.12719)
+- Afrah Farea and Mustafa Serdar Celebi. **Learnable activation functions in physics-informed neural networks for solving partial differential equations**. *Computer Physics Communications*, 315:109753, 2025. [DOI](https://doi.org/10.1016/j.cpc.2025.109753)
+- Afrah Farea, Saiful Khan, and Mustafa Serdar Celebi. **Multi-Objective Loss Balancing in Physics-Informed Neural Networks for Fluid Flow Applications**. *HiPC 2025*, pp. 108-118, 2025. [DOI](https://doi.org/10.1109/HiPC66333.2025.00020)
+
